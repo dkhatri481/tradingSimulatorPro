@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TradePro — Trading Simulator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- LOADING SCREEN -->
+  <div id="loadingScreen" class="login-screen">
+    <div style="font-size:52px;margin-bottom:4px;">📈</div>
+    <div class="login-box" style="text-align:center;">
+      <div class="logo-big">TradePro</div>
+      <div class="sub">Loading market data …</div>
+      <div class="loader-ring"></div>
+      <div class="demo-note" style="margin-top:16px;">Please wait</div>
+    </div>
+  </div>
+
+  <!-- LOGIN SCREEN -->
+  <div id="loginScreen" class="login-screen" style="display:none;">
+    <div class="login-box">
+      <div class="logo-big">📈 TradePro</div>
+      <div class="sub">Professional Trading Simulator</div>
+      <input type="text" id="loginUser" placeholder="Username" value="demo" />
+      <input type="password" id="loginPass" placeholder="Password" value="demo" />
+      <button class="login-btn" onclick="doLogin()">🚀 Launch</button>
+      <div class="demo-note">Any username · demo mode</div>
+    </div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="mainApp" class="app">
+    <!-- HEADER -->
+    <div class="header">
+      <div class="header-left"><span class="logo">📈 TradePro</span></div>
+      <div class="header-center">
+        <div class="stat"><span class="label">Balance</span><span id="statBalance" class="value">$100,000.00</span></div>
+        <div class="stat"><span class="label">Portfolio</span><span id="statPortfolio" class="value">$0.00</span></div>
+        <div class="stat"><span class="label">Total P&L</span><span id="statPnL" class="value green">+$0.00</span></div>
+        <div class="stat"><span class="label">Day P&L</span><span id="statDayPnL" class="value green">+$0.00</span></div>
+        <div class="stat fx-stat"><span class="label">USD/INR</span><span class="value">₹83.50</span></div>
+      </div>
+      <div class="header-right">
+        <span class="user-pill" id="userPill">👤 Guest</span>
+        <button class="logout-btn" onclick="doLogout()">Logout</button>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+      <!-- SIDEBAR -->
+      <div class="sidebar">
+        <div class="sidebar-tabs">
+          <div class="sidebar-tab active" onclick="setTab('all')" id="tab-all">All</div>
+          <div class="sidebar-tab" onclick="setTab('india')" id="tab-india">🇮🇳</div>
+          <div class="sidebar-tab" onclick="setTab('us')" id="tab-us">🇺🇸</div>
+          <div class="sidebar-tab" onclick="setTab('crypto')" id="tab-crypto">₿</div>
+        </div>
+        <div class="search-box">
+          <input type="text" id="stockSearch" placeholder="Search symbol or name …" oninput="filterStocks()" />
+        </div>
+        <div class="stock-list" id="stockList"></div>
+      </div>
+
+      <!-- CENTER -->
+      <div class="center">
+        <!-- Chart Header -->
+        <div class="chart-header">
+          <div class="chart-title-group">
+            <h2 id="chartSymbol">AAPL</h2>
+            <span class="name" id="chartName">Apple Inc.</span>
+          </div>
+          <div class="chart-price-group">
+            <span class="price" id="chartCurrentPrice">$0.00</span>
+            <span class="change" id="chartChange">+0.00%</span>
+          </div>
+          <div class="ohlc-row" id="ohlcRow">
+            <div class="ohlc-item"><span class="ohlc-label">O</span><span id="ohlcO" class="ohlc-val">—</span></div>
+            <div class="ohlc-item"><span class="ohlc-label">H</span><span id="ohlcH" class="ohlc-val">—</span></div>
+            <div class="ohlc-item"><span class="ohlc-label">L</span><span id="ohlcL" class="ohlc-val">—</span></div>
+            <div class="ohlc-item"><span class="ohlc-label">C</span><span id="ohlcC" class="ohlc-val">—</span></div>
+            <div class="ohlc-item"><span class="ohlc-label">V</span><span id="ohlcV" class="ohlc-val">—</span></div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="chart-wrap">
+          <div class="chart-container" id="chartContainer">
+            <svg id="candleChart"></svg>
+            <div class="timeframes">
+              <button class="tf-btn" onclick="setTimeframe('1m')" id="tf-1M">1M</button>
+              <button class="tf-btn" onclick="setTimeframe('5m')" id="tf-5M">5M</button>
+              <button class="tf-btn" onclick="setTimeframe('15m')" id="tf-15M">15M</button>
+              <button class="tf-btn" onclick="setTimeframe('1h')" id="tf-1H">1H</button>
+              <button class="tf-btn" onclick="setTimeframe('4h')" id="tf-4H">4H</button>
+              <button class="tf-btn active" onclick="setTimeframe('1d')" id="tf-1D">1D</button>
+            </div>
+            <div class="indicators">
+              <button class="indicator-btn active" id="ind-vol" onclick="toggleIndicator('volume')">Vol</button>
+              <button class="indicator-btn" id="ind-ma" onclick="toggleIndicator('ma')">MA</button>
+            </div>
+            <div class="crosshair" id="crosshairV"></div>
+            <div class="crosshair-h" id="crosshairH"></div>
+            <div class="tooltip" id="chartTooltip"></div>
+          </div>
+        </div>
+
+        <!-- Trade Panel -->
+        <div class="trade-panel">
+          <div class="trade-group" style="flex:0.6;">
+            <label>Order</label>
+            <select id="orderType" onchange="setOrderType(this.value)">
+              <option value="market">Market</option>
+              <option value="limit">Limit</option>
+            </select>
+          </div>
+          <div class="trade-group limit-price-group" id="limitPriceGroup" style="display:none;">
+            <label>Limit Price</label>
+            <input type="number" id="limitPrice" min="0.01" step="0.01" oninput="updateTradeTotal()" />
+          </div>
+          <div class="trade-group" style="flex:0.5;">
+            <label>Qty</label>
+            <input type="number" id="tradeQty" value="1" min="1" step="1" oninput="updateTradeTotal()" />
+          </div>
+          <div class="trade-group" style="flex:0.8;">
+            <label>Total</label>
+            <div class="trade-total" id="tradeTotal">$0.00</div>
+          </div>
+          <div class="trade-btns" style="flex:1;">
+            <button class="trade-btn buy" onclick="openTradeDialog('buy')">Buy</button>
+            <button class="trade-btn sell" onclick="openTradeDialog('sell')">Sell</button>
+          </div>
+        </div>
+        <div class="trade-msg" id="tradeMsg"></div>
+      </div>
+    </div>
+
+    <!-- BOTTOM PANELS -->
+    <div class="bottom">
+      <div class="panel">
+        <div class="panel-header">Positions <span id="posCount">(0)</span></div>
+        <div class="panel-body"><table><thead><tr><th>Symbol</th><th class="text-right">Qty</th><th class="text-right">Avg</th><th class="text-right">LTP</th><th class="text-right">P&L</th></tr></thead><tbody id="posTable"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">Holdings <span id="holdCount">(0)</span></div>
+        <div class="panel-body"><table><thead><tr><th>Symbol</th><th class="text-right">Qty</th><th class="text-right">Avg</th><th class="text-right">Invested</th><th class="text-right">Current</th><th class="text-right">P&L</th></tr></thead><tbody id="holdTable"></tbody></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">Orders</div>
+        <div class="panel-body"><table><thead><tr><th>Time</th><th>Symbol</th><th>Type</th><th class="text-right">Qty</th><th class="text-right">Price</th><th class="text-right">Total</th></tr></thead><tbody id="orderTable"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tradeDialog" class="trade-dialog" aria-hidden="true">
+    <div class="trade-dialog-backdrop" onclick="closeTradeDialog()"></div>
+    <form class="trade-dialog-box" onsubmit="submitTradeDialog(event)">
+      <div class="trade-dialog-header">
+        <div><strong id="dialogAction">Buy</strong> <span id="dialogSymbol">AAPL</span></div>
+        <button type="button" class="dialog-close" onclick="closeTradeDialog()" aria-label="Close">×</button>
+      </div>
+      <div class="dialog-market">Market price: <strong id="dialogMarketPrice">—</strong></div>
+      <div class="dialog-grid">
+        <label>Order type
+          <select id="dialogOrderType" onchange="updateDialogFields()">
+            <option value="market">Market</option>
+            <option value="limit">Limit</option>
+          </select>
+        </label>
+        <label>Quantity
+          <input id="dialogQty" type="number" min="1" step="1" value="1" oninput="updateDialogFields()" required />
+        </label>
+        <label id="dialogLimitGroup" class="dialog-wide" hidden>Limit price
+          <input id="dialogLimitPrice" type="number" min="0.01" step="0.01" oninput="updateDialogFields()" />
+        </label>
+        <label>Stop-loss
+          <input id="dialogStopLoss" type="number" min="0.01" step="0.01" placeholder="Optional" />
+        </label>
+      </div>
+      <div id="dialogHint" class="dialog-hint"></div>
+      <div class="dialog-total">Estimated total <strong id="dialogTotal">—</strong></div>
+      <button id="dialogSubmit" class="trade-btn buy dialog-submit" type="submit">Execute Buy</button>
+    </form>
+  </div>
+
+  <!-- SCRIPTS (5 files) -->
+  <script src="scripts/core.js"></script>
+  <script src="scripts/data.js"></script>
+  <script src="scripts/chart.js"></script>
+  <script src="scripts/trading.js"></script>
+  <script src="scripts/app.js"></script>
+</body>
+</html>
