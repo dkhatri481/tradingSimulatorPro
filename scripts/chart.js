@@ -5,16 +5,26 @@
 function updateOHLC(sym) {
   const data = state.stockData[sym];
   const candles = getCandles(sym, state.currentTimeframe);
-  if (!data || !candles.length) return;
+  if (!data || !candles.length) {
+    ['ohlcO', 'ohlcH', 'ohlcL', 'ohlcC', 'ohlcV', 'chartCurrentPrice'].forEach(id => {
+      document.getElementById(id).textContent = '—';
+    });
+    const chEl = document.getElementById('chartChange');
+    chEl.textContent = '';
+    chEl.className = 'change';
+    return;
+  }
   const last = candles[candles.length - 1];
   const prevClose = candles.length >= 2 ? candles[candles.length - 2].Close : last.Open;
-  const change = ((last.Close - prevClose) / prevClose) * 100;
+  const livePrice = Number(state.livePrices[sym]);
+  const currentPrice = Number.isFinite(livePrice) && livePrice > 0 ? livePrice : last.Close;
+  const change = ((currentPrice - prevClose) / prevClose) * 100;
   document.getElementById('ohlcO').textContent = fmtCompact(last.Open);
   document.getElementById('ohlcH').textContent = fmtCompact(last.High);
   document.getElementById('ohlcL').textContent = fmtCompact(last.Low);
   document.getElementById('ohlcC').textContent = fmtCompact(last.Close);
   document.getElementById('ohlcV').textContent = fmtVol(last.Volume);
-  document.getElementById('chartCurrentPrice').textContent = fmtPrice(last.Close, data.currency);
+  document.getElementById('chartCurrentPrice').textContent = fmtPrice(currentPrice, data.currency);
   const chEl = document.getElementById('chartChange');
   chEl.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
   chEl.className = 'change ' + (change >= 0 ? 'up' : 'down');
@@ -25,11 +35,10 @@ function drawCandlestickChart(sym, timeframe) {
   const data = state.stockData[sym];
   const allCandles = getCandles(sym, timeframe);
   if (!data || !allCandles.length) {
-    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#5a6a82" font-size="14" font-family="system-ui">No data</text>';
+    setChartStatus('Loading Yahoo Finance data...');
     return;
   }
-  const displayLimit = { '1m': 240, '5m': 288, '15m': 192, '1h': 168, '4h': 42, '1d': 7 };
-  const limit = displayLimit[timeframe] || 240;
+  const limit = CANDLE_LIMITS[timeframe] || 240;
   const candles = allCandles.slice(-Math.min(limit, allCandles.length));
 
   const container = document.getElementById('chartContainer');
@@ -143,7 +152,7 @@ function drawCandlestickChart(sym, timeframe) {
       tt.style.left = ttLeft + 'px';
       tt.style.top = ttTop + 'px';
       tt.innerHTML = `
-        <div class="tt-date">${d.Date || ''}</div>
+        <div class="tt-date">${formatTooltipDate(d.Date)}</div>
         <div class="tt-row"><span class="tt-label">O</span><span class="tt-val">${fmtCompact(d.Open)}</span></div>
         <div class="tt-row"><span class="tt-label">H</span><span class="tt-val">${fmtCompact(d.High)}</span></div>
         <div class="tt-row"><span class="tt-label">L</span><span class="tt-val">${fmtCompact(d.Low)}</span></div>
@@ -161,6 +170,20 @@ function drawCandlestickChart(sym, timeframe) {
   };
 }
 
+function setChartStatus(message) {
+  const svg = document.getElementById('candleChart');
+  svg.replaceChildren();
+  const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  text.setAttribute('x', '50%');
+  text.setAttribute('y', '50%');
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('fill', '#aebbd0');
+  text.setAttribute('font-size', '14');
+  text.setAttribute('font-family', 'system-ui');
+  text.textContent = message;
+  svg.appendChild(text);
+}
+
 function formatChartDate(value, timeframe) {
   if (!value) return '';
   const date = new Date(value);
@@ -168,18 +191,38 @@ function formatChartDate(value, timeframe) {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+function formatTooltipDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString([], {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function updateTimeframeButtons(timeframe) {
+  document.querySelectorAll('.timeframes .tf-btn').forEach(button => {
+    button.classList.toggle('active', button.id === 'tf-' + timeframe.toUpperCase());
+  });
+}
+
 function setTimeframe(tf) {
+  if (!FETCH_CONFIG[tf]) return;
   state.currentTimeframe = tf;
-  document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-  const id = 'tf-' + tf.toUpperCase();
-  const el = document.getElementById(id);
-  if (el) el.classList.add('active');
+  updateTimeframeButtons(tf);
   if (state.selected) {
+    const symbol = state.selected;
+    updateOHLC(state.selected);
     drawCandlestickChart(state.selected, tf);
-    refreshMarketData(state.selected, tf).then(loaded => {
-      if (loaded && state.currentTimeframe === tf) {
-        updateOHLC(state.selected);
-        drawCandlestickChart(state.selected, tf);
+    refreshMarketData(symbol, tf).then(loaded => {
+      if (loaded && state.selected === symbol && state.currentTimeframe === tf) {
+        renderMarketData(symbol, tf);
+      } else if (!loaded && state.selected === symbol && state.currentTimeframe === tf) {
+        showMarketDataError(symbol, tf);
       }
     });
   }

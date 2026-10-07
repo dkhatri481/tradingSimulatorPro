@@ -108,6 +108,7 @@ function loadState() {
     }
     // Restore main state
     Object.assign(state, saved);
+    if (!FETCH_CONFIG[state.currentTimeframe]) state.currentTimeframe = '1d';
     // Ensure required fields exist
     state.portfolio = state.portfolio || {};
     state.orders = state.orders || [];
@@ -115,36 +116,9 @@ function loadState() {
     state.stockData = state.stockData || {};
     if (saved.USD_TO_INR) USD_TO_INR = saved.USD_TO_INR;
 
-    // Ensure all universe symbols exist in stockData
-    Object.keys(STOCK_UNIVERSE).forEach(sym => {
-      if (!state.stockData[sym] || !Array.isArray(state.stockData[sym].candles)) {
-        const generated = generateMockData(sym);
-        state.stockData[sym] = generated;
-        state.livePrices[sym] = generated.currentPrice;
-      } else {
-        state.stockData[sym].name = STOCK_UNIVERSE[sym];
-        state.stockData[sym].currency = sym.endsWith('.NS') ? 'INR' : 'USD';
-        // Ensure all timeframes exist
-        const allTfs = ['1m','5m','15m','1h','4h','1d'];
-        allTfs.forEach(tf => {
-          if (!state.stockData[sym].candlesByTimeframe || !state.stockData[sym].candlesByTimeframe[tf] || state.stockData[sym].candlesByTimeframe[tf].length === 0) {
-            if (!state.stockData[sym].candlesByTimeframe) state.stockData[sym].candlesByTimeframe = {};
-            const seed = state.stockData[sym].candles && state.stockData[sym].candles.length ? state.stockData[sym].candles[0].Open : state.stockData[sym].currentPrice;
-            state.stockData[sym].candlesByTimeframe[tf] = generateCandles(seed, tf, sym.endsWith('-USD'));
-          }
-          const limit = CANDLE_LIMITS[tf];
-          if (limit && state.stockData[sym].candlesByTimeframe[tf].length > limit) {
-            state.stockData[sym].candlesByTimeframe[tf] =
-              state.stockData[sym].candlesByTimeframe[tf].slice(-limit);
-          }
-        });
-        state.stockData[sym].candles = state.stockData[sym].candlesByTimeframe['1d'];
-        // Restore live price
-        if (state.livePrices[sym] === undefined || state.livePrices[sym] === null) {
-          state.livePrices[sym] = state.stockData[sym].currentPrice;
-        }
-      }
-    });
+    // Discard browser-specific cached candles and reload every chart from Yahoo Finance.
+    state.stockData = createAllStockData();
+    state.livePrices = {};
 
     // Migrate old portfolio records whose INR average was calculated in USD.
     Object.entries(state.portfolio).forEach(([sym, position]) => {
