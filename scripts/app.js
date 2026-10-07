@@ -17,81 +17,61 @@ window.updateDialogFields = updateDialogFields;
 window.submitTradeDialog = submitTradeDialog;
 window.doLogin = doLogin;
 window.doLogout = doLogout;
+window.refreshChart = refreshChart;
 
-// ---------- SIMULATION ----------
-function startLiveSimulation() {
-  if (state._updateTimer) clearInterval(state._updateTimer);
-  state._updateTimer = setInterval(() => {
-    // Update USD/INR with small random walk
-    USD_TO_INR *= (1 + (Math.random() - 0.5) * 0.0002);
-    USD_TO_INR = Math.round(USD_TO_INR * 100) / 100;
-
-    Object.keys(state.stockData).forEach(sym => {
-      const data = state.stockData[sym];
-      if (!data || !data.candlesByTimeframe) return;
-      const baseCandles = data.candlesByTimeframe['1d'];
-      if (!baseCandles || !baseCandles.length) return;
-      const last = baseCandles[baseCandles.length - 1];
-      const vol = data.currency === 'INR' ? 0.004 : 0.0025;
-      const minMove = data.currency === 'INR' ? 0.05 : 0.01;
-      const move = Math.max(last.Close * vol * 0.6, minMove);
-      let np = Math.round((last.Close + (Math.random() - 0.5) * move * 2) * 100) / 100;
-      if (np <= 0) np = minMove;
-      if (np === last.Close) np = Math.round((last.Close + (Math.random() < 0.5 ? -minMove : minMove)) * 100) / 100;
-      state.livePrices[sym] = np;
-      data.currentPrice = np;
-
-      // Update ALL timeframes
-      Object.keys(data.candlesByTimeframe).forEach(tf => {
-        const candles = data.candlesByTimeframe[tf];
-        if (!candles || !candles.length) return;
-        const lastCandle = candles[candles.length - 1];
-        lastCandle.Date = new Date().toISOString();
-        lastCandle.Close = np;
-        if (np > lastCandle.High) lastCandle.High = np;
-        if (np < lastCandle.Low) lastCandle.Low = np;
-      });
-
-      // Stop-loss check
-      const position = state.portfolio[sym];
-      if (position && position.qty > 0 && position.stopLoss > 0 &&
-          position.stopLoss >= np && position.avg > position.stopLoss) {
-        const stopType = 'sell';
-        document.getElementById('orderType').value = 'market';
-        document.getElementById('limitPrice').value = '';
-        document.getElementById('tradeQty').value = position.qty;
-        state.selected = sym;
-        executeTrade(stopType);
-      }
-
-    });
-
-    renderStockList();
-    if (state.selected && state.stockData[state.selected]) {
-      const d = state.stockData[state.selected];
-      if (d.candlesByTimeframe && d.candlesByTimeframe['1d'].length) {
-        updateOHLC(state.selected);
-        updateTradeTotal();
-        drawCandlestickChart(state.selected, state.currentTimeframe);
-      }
-    }
-    updateStats();
-    renderPositions();
-    renderHoldings();
-    renderOrders();
-    saveState();
-  }, 2800);
+// ---------- MARKET DATA REFRESH ----------
+function renderMarketData(symbol, timeframe) {
+  if (state.selected !== symbol || state.currentTimeframe !== timeframe) return;
+  updateOHLC(symbol);
+  updateTradeTotal();
+  drawCandlestickChart(symbol, timeframe);
+  renderStockList();
+  updateStats();
+  renderPositions();
+  renderHoldings();
 }
 
-async function loadSelectedMarketData() {
-  if (!state.selected) return;
-  const loaded = await refreshMarketData(state.selected, state.currentTimeframe);
-  if (loaded) {
-    updateOHLC(state.selected);
-    updateTradeTotal();
-    drawCandlestickChart(state.selected, state.currentTimeframe);
-    renderStockList();
+function showMarketDataError(symbol, timeframe = state.currentTimeframe) {
+  if (state.selected === symbol && state.currentTimeframe === timeframe) {
+    const error = getMarketRequestError(symbol, timeframe);
+    if (!getCandles(symbol, timeframe).length) {
+      setChartStatus(error || 'Yahoo Finance data unavailable. Retrying...');
+    }
+    showTradeMsg(error ? `Chart data error: ${error}` : `Yahoo Finance data unavailable for ${symbol}. Try again shortly.`, 'error');
   }
+}
+
+async function refreshChart() {
+  const symbol = state.selected;
+  const timeframe = state.currentTimeframe;
+  const data = state.stockData[symbol];
+  const button = document.getElementById('chartRefreshBtn');
+  if (!data || !symbol || !button) return;
+
+  button.disabled = true;
+  button.title = 'Refreshing Yahoo Finance data...';
+
+  try {
+    const loaded = await refreshMarketData(symbol, timeframe, true);
+    if (state.selected !== symbol || state.currentTimeframe !== timeframe) return;
+    if (loaded) renderMarketData(symbol, timeframe);
+    else showMarketDataError(symbol, timeframe);
+  } finally {
+    button.disabled = false;
+    button.title = 'Clear chart cache and fetch fresh Yahoo Finance data';
+  }
+}
+
+function startMarketDataPolling() {
+  if (state._updateTimer) clearInterval(state._updateTimer);
+  state._updateTimer = setInterval(async () => {
+    const symbol = state.selected;
+    const timeframe = state.currentTimeframe;
+    if (!symbol || !state.user) return;
+    const loaded = await refreshMarketData(symbol, timeframe);
+    if (loaded) renderMarketData(symbol, timeframe);
+    else showMarketDataError(symbol, timeframe);
+  }, 60000);
 }
 
 // ---------- LOGIN / LOGOUT ----------
@@ -110,8 +90,7 @@ function doLogin() {
   renderPositions();
   renderHoldings();
   renderOrders();
-  startLiveSimulation();
-  loadSelectedMarketData();
+  startMarketDataPolling();
 }
 
 function doLogout() {
@@ -124,7 +103,7 @@ function doLogout() {
   state.orders = [];
   state.dayPnL = 0;
   state.livePrices = {};
-  state.stockData = generateAllMockData();
+  state.stockData = createAllStockData();
   saveState();
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('mainApp').classList.remove('active');
@@ -135,10 +114,10 @@ function initApp() {
   // Load saved state
   const loaded = loadState();
   if (!loaded) {
-    // Only generate fresh data if no saved state exists
-    state.stockData = generateAllMockData();
+    state.stockData = createAllStockData();
     saveState();
   }
+  updateTimeframeButtons(state.currentTimeframe);
 
   document.getElementById('loadingScreen').style.display = 'none';
 
@@ -153,8 +132,7 @@ function initApp() {
     renderPositions();
     renderHoldings();
     renderOrders();
-    startLiveSimulation();
-    loadSelectedMarketData();
+    startMarketDataPolling();
   } else {
     document.getElementById('loginScreen').style.display = 'flex';
   }

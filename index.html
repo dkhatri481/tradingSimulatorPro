@@ -90,7 +90,6 @@
           <div class="chart-container" id="chartContainer">
             <svg id="candleChart"></svg>
             <div class="timeframes">
-              <button class="tf-btn" onclick="setTimeframe('1m')" id="tf-1M">1M</button>
               <button class="tf-btn" onclick="setTimeframe('5m')" id="tf-5M">5M</button>
               <button class="tf-btn" onclick="setTimeframe('15m')" id="tf-15M">15M</button>
               <button class="tf-btn" onclick="setTimeframe('1h')" id="tf-1H">1H</button>
@@ -100,6 +99,7 @@
             <div class="indicators">
               <button class="indicator-btn active" id="ind-vol" onclick="toggleIndicator('volume')">Vol</button>
               <button class="indicator-btn" id="ind-ma" onclick="toggleIndicator('ma')">MA</button>
+              <button class="indicator-btn chart-refresh-btn" onclick="refreshChart()" id="chartRefreshBtn" aria-label="Clear chart cache and refresh Yahoo Finance data" title="Clear chart cache and fetch fresh Yahoo Finance data">↻</button>
             </div>
             <div class="crosshair" id="crosshairV"></div>
             <div class="crosshair-h" id="crosshairH"></div>
