@@ -198,7 +198,7 @@ function executeTrade(type, options = {}) {
 // ---------- SIDEBAR & FILTERS ----------
 function getChange(sym) {
   const c = getCandles(sym, '1d');
-  if (c.length < 2) return 0;
+  if (c.length < 2) return null;
   const prev = c[c.length - 2].Close;
   const curr = c[c.length - 1].Close;
   return ((curr - prev) / prev) * 100;
@@ -212,7 +212,7 @@ function renderStockList() {
     sym,
     name: state.stockData[sym].name,
     currency: state.stockData[sym].currency,
-    price: state.livePrices[sym] || 0,
+    price: state.livePrices[sym] ?? null,
     change: getChange(sym)
   }));
   if (state.tab === 'india') list = list.filter(s => s.sym.endsWith('.NS'));
@@ -224,14 +224,14 @@ function renderStockList() {
       String(s.name || '').toLowerCase().includes(q)
     );
   }
-  list.sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  list.sort((a, b) => Math.abs(b.change || 0) - Math.abs(a.change || 0));
 
   list.forEach(s => {
     const div = document.createElement('div');
     div.className = 'stock-item' + (s.sym === state.selected ? ' active' : '');
     div.onclick = () => selectStock(s.sym);
-    const chClass = s.change >= 0 ? 'up' : 'down',
-          chSign = s.change >= 0 ? '+' : '';
+    const chClass = s.change === null ? '' : s.change >= 0 ? 'up' : 'down',
+          chSign = s.change !== null && s.change >= 0 ? '+' : '';
     div.innerHTML = `
       <div class="stock-info">
         <span class="stock-symbol">${s.sym}</span>
@@ -243,7 +243,7 @@ function renderStockList() {
       </div>
       <div class="stock-price">
         <span class="stock-price-val">${fmtPrice(s.price, s.currency)}</span>
-        <span class="stock-change ${chClass}">${chSign}${s.change.toFixed(2)}%</span>
+        <span class="stock-change ${chClass}">${s.change === null ? '—' : `${chSign}${s.change.toFixed(2)}%`}</span>
       </div>
     `;
     el.appendChild(div);
@@ -260,12 +260,12 @@ function selectStock(sym) {
   updateOHLC(sym);
   updateTradeTotal();
   drawCandlestickChart(sym, state.currentTimeframe);
-  refreshMarketData(sym, state.currentTimeframe).then(loaded => {
-    if (loaded && state.selected === sym) {
-      updateOHLC(sym);
-      updateTradeTotal();
-      drawCandlestickChart(sym, state.currentTimeframe);
-      renderStockList();
+  const timeframe = state.currentTimeframe;
+  refreshMarketData(sym, timeframe).then(loaded => {
+    if (loaded && state.selected === sym && state.currentTimeframe === timeframe) {
+      renderMarketData(sym, timeframe);
+    } else if (!loaded && state.selected === sym && state.currentTimeframe === timeframe) {
+      showMarketDataError(sym, timeframe);
     }
   });
 }
