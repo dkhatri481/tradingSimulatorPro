@@ -478,6 +478,15 @@ body {
   background: var(--surface3);
   color: var(--text);
 }
+.chart-refresh-btn {
+  font-size: 14px;
+  line-height: 12px;
+  padding: 3px 7px;
+}
+.chart-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
 .indicators {
   position: absolute;
   top: 10px;
@@ -506,6 +515,16 @@ body {
 .indicator-btn:hover:not(.active) {
   background: var(--surface3);
   color: var(--text);
+}
+@media (max-width: 900px) {
+  .tf-btn {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+  .indicator-btn {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
 }
 .crosshair {
   position: absolute;
