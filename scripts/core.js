@@ -17,19 +17,28 @@ const STOCK_UNIVERSE = {
   'RELIANCE.NS': 'Reliance Industries',
   'TCS.NS': 'Tata Consultancy Services',
   'INFY.NS': 'Infosys Limited',
-  'HDFC.NS': 'HDFC Bank',
+  'HDFCBANK.NS': 'HDFC Bank',
   'ICICIBANK.NS': 'ICICI Bank',
   'BTC-USD': 'Bitcoin',
   'ETH-USD': 'Ethereum',
   'BNB-USD': 'Binance Coin',
   'SOL-USD': 'Solana',
-  'XRP-USD': 'Ripple'
+  'XRP-USD': 'Ripple',
+  'EURUSD=X': 'Euro / US Dollar',
+  'GBPUSD=X': 'British Pound / US Dollar',
+  'AUDUSD=X': 'Australian Dollar / US Dollar',
+  'NZDUSD=X': 'New Zealand Dollar / US Dollar'
 };
+
+const INITIAL_INR_BALANCE = 100000;
+const PREVIOUS_INITIAL_INR_BALANCE = 8350000;
 
 // ---------- GLOBAL STATE ----------
 let state = {
   user: null,
-  balance: 100000,
+  balance: INITIAL_INR_BALANCE,
+  usdBalance: 0,
+  initialBalance: INITIAL_INR_BALANCE,
   selected: 'AAPL',
   tab: 'all',
   portfolio: {},           // { sym: { qty, avg, invested, stopLoss? } }
@@ -48,11 +57,11 @@ const STORAGE_KEY = 'tradepro-simulator-v2';
 let USD_TO_INR = 83.5;
 
 function toAccountCurrency(amount, currency) {
-  return currency === 'INR' ? amount / USD_TO_INR : amount;
+  return currency === 'INR' ? amount : amount * USD_TO_INR;
 }
 
 function fromAccountCurrency(amount, currency) {
-  return currency === 'INR' ? amount * USD_TO_INR : amount;
+  return currency === 'INR' ? amount : amount / USD_TO_INR;
 }
 
 function saveState() {
@@ -75,6 +84,8 @@ function saveState() {
   const snapshot = {
     user: state.user,
     balance: state.balance,
+    usdBalance: state.usdBalance,
+    initialBalance: state.initialBalance,
     selected: state.selected,
     tab: state.tab,
     portfolio: state.portfolio,
@@ -115,6 +126,28 @@ function loadState() {
     state.livePrices = state.livePrices || {};
     state.stockData = state.stockData || {};
     if (saved.USD_TO_INR) USD_TO_INR = saved.USD_TO_INR;
+    const hadSeparateUsdWallet = Number.isFinite(saved.usdBalance);
+    if (hadSeparateUsdWallet) {
+      state.usdBalance = saved.usdBalance;
+    } else {
+      state.balance = toAccountCurrency(state.balance, 'USD');
+      state.dayPnL = toAccountCurrency(state.dayPnL || 0, 'USD');
+      state.usdBalance = 0;
+    }
+    state.initialBalance = Number.isFinite(saved.initialBalance)
+      ? saved.initialBalance
+      : hadSeparateUsdWallet ? PREVIOUS_INITIAL_INR_BALANCE : toAccountCurrency(100000, 'USD');
+    const hadNoTradingActivity = Object.keys(state.portfolio).length === 0 &&
+      state.orders.length === 0 &&
+      state.dayPnL === 0;
+    const hasPreviousDefaultBalance = hadSeparateUsdWallet
+      ? saved.balance === PREVIOUS_INITIAL_INR_BALANCE && saved.usdBalance === 0
+      : saved.balance === 100000;
+    if (hadNoTradingActivity && hasPreviousDefaultBalance) {
+      state.balance = INITIAL_INR_BALANCE;
+      state.usdBalance = 0;
+      state.initialBalance = INITIAL_INR_BALANCE;
+    }
 
     // Discard browser-specific cached candles and reload every chart from Yahoo Finance.
     state.stockData = createAllStockData();
@@ -129,6 +162,7 @@ function loadState() {
         position.avg *= USD_TO_INR;
       }
       position.avgNative = position.avg;
+      position.invested = position.qty * position.avg;
     });
 
     // Ensure selected symbol exists

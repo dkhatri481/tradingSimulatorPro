@@ -12,7 +12,17 @@ function updateTradeTotal() {
   const total = qty * price;
   const currency = state.stockData[state.selected]?.currency || 'USD';
   document.getElementById('tradeTotal').textContent = fmtPrice(total, currency);
+  renderTradeFunds(total, currency);
   return total;
+}
+
+function renderTradeFunds(total = 0, currency = state.stockData[state.selected]?.currency || 'USD') {
+  const element = document.getElementById('tradeFunds');
+  if (!element) return;
+  const walletBalance = currency === 'INR' ? state.balance : state.usdBalance;
+  const walletName = currency === 'INR' ? 'INR wallet' : 'USD wallet';
+  element.textContent = `${walletName}: ${fmtPrice(walletBalance, currency)}${total > walletBalance ? ` · Short by ${fmtPrice(total - walletBalance, currency)}` : ''}`;
+  element.className = 'trade-funds' + (total > walletBalance ? ' insufficient' : '');
 }
 
 function setOrderType(type) {
@@ -33,6 +43,120 @@ function showTradeMsg(msg, type) {
   el.className = 'trade-msg ' + type;
   clearTimeout(tradeMsgTimer);
   tradeMsgTimer = setTimeout(() => { el.className = 'trade-msg'; }, 5000);
+}
+
+function openCurrencyDialog() {
+  document.getElementById('convertInrBalance').textContent = fmtPrice(state.balance, 'INR');
+  document.getElementById('convertUsdBalance').textContent = fmtPrice(state.usdBalance, 'USD');
+  document.getElementById('convertFrom').value = 'INR';
+  document.getElementById('convertTo').value = 'USD';
+  document.getElementById('convertAmount').value = '10000';
+  updateCurrencyConversion();
+  const dialog = document.getElementById('currencyDialog');
+  dialog.classList.add('open');
+  dialog.setAttribute('aria-hidden', 'false');
+  refreshUsdInrRate(true);
+}
+
+function closeCurrencyDialog() {
+  const dialog = document.getElementById('currencyDialog');
+  dialog.classList.remove('open');
+  dialog.setAttribute('aria-hidden', 'true');
+}
+
+function updateCurrencyConversion() {
+  const from = document.getElementById('convertFrom').value;
+  const toSelect = document.getElementById('convertTo');
+  if (from === toSelect.value) toSelect.value = from === 'INR' ? 'USD' : 'INR';
+  const to = toSelect.value;
+  const amount = Number(document.getElementById('convertAmount').value);
+  const converted = from === 'INR' ? amount / USD_TO_INR : amount * USD_TO_INR;
+  const rateStatus = usdInrRateRefreshing
+    ? ' · Fetching current Yahoo Finance rate'
+    : hasCurrentUsdInrRate()
+      ? ' · Live Yahoo Finance rate'
+      : usdInrRateUpdatedAt
+        ? ' · Last known rate — refresh failed'
+        : usdInrRateError ? ' · Fallback rate' : ' · Waiting for live rate';
+  document.getElementById('conversionRate').textContent = `Rate: $1 = ${fmtPrice(USD_TO_INR, 'INR')}${rateStatus} · No conversion fee`;
+  document.getElementById('conversionPreview').textContent = hasCurrentUsdInrRate() ? fmtPrice(converted, to) : '—';
+  document.getElementById('convertSubmit').disabled = !hasCurrentUsdInrRate();
+}
+
+function hasCurrentUsdInrRate() {
+  return Boolean(usdInrRateUpdatedAt &&
+    Date.now() - usdInrRateUpdatedAt.getTime() < 90000 &&
+    !usdInrRateError &&
+    !usdInrRateRefreshing);
+}
+
+function updateCurrencyRateDisplay() {
+  const rateValue = document.querySelector('.fx-stat .value');
+  const rateLabel = document.getElementById('fxRateLabel');
+  if (!rateValue || !rateLabel) return;
+  rateValue.textContent = fmtPrice(USD_TO_INR, 'INR');
+  const status = usdInrRateRefreshing
+    ? 'USD/INR loading'
+    : hasCurrentUsdInrRate()
+      ? 'USD/INR live'
+      : usdInrRateUpdatedAt
+        ? 'USD/INR stale'
+        : usdInrRateError ? 'USD/INR fallback' : 'USD/INR loading';
+  const updated = usdInrRateUpdatedAt ? ` Last updated ${usdInrRateUpdatedAt.toLocaleTimeString()}.` : '';
+  const error = usdInrRateError ? ` Refresh error: ${usdInrRateError}.` : '';
+  rateLabel.textContent = status;
+  rateLabel.title = `${updated}${error}` || 'Fetching the current USD/INR rate from Yahoo Finance.';
+  if (document.getElementById('currencyDialog').classList.contains('open')) {
+    updateCurrencyConversion();
+  }
+}
+
+function executeCurrencyConversion(event) {
+  event.preventDefault();
+  if (!hasCurrentUsdInrRate()) {
+    showTradeMsg('Waiting for a current USD/INR quote. Refreshing the rate; try again when it is ready.', 'error');
+    refreshUsdInrRate(true);
+    return;
+  }
+  const from = document.getElementById('convertFrom').value;
+  const to = document.getElementById('convertTo').value;
+  const amount = Number(document.getElementById('convertAmount').value);
+  if (!Number.isFinite(amount) || amount <= 0 || from === to) {
+    showTradeMsg('Enter a valid conversion amount and currency pair.', 'error');
+    return;
+  }
+  const sourceBalance = from === 'INR' ? state.balance : state.usdBalance;
+  if (amount > sourceBalance) {
+    showTradeMsg(`Not enough ${from} in your wallet. Available: ${fmtPrice(sourceBalance, from)}.`, 'error');
+    return;
+  }
+  const received = Number((from === 'INR' ? amount / USD_TO_INR : amount * USD_TO_INR).toFixed(2));
+  if (from === 'INR') {
+    state.balance -= amount;
+    state.usdBalance += received;
+  } else {
+    state.usdBalance -= amount;
+    state.balance += received;
+  }
+  state.orders.unshift({
+    time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+    sym: `${from}/${to}`,
+    type: 'CONVERT',
+    qty: amount,
+    price: USD_TO_INR,
+    priceCurrency: 'INR',
+    total: received,
+    currency: to
+  });
+  if (state.orders.length > 50) state.orders.pop();
+  updateStats();
+  updateTradeTotal();
+  renderOrders();
+  saveState();
+  document.getElementById('convertInrBalance').textContent = fmtPrice(state.balance, 'INR');
+  document.getElementById('convertUsdBalance').textContent = fmtPrice(state.usdBalance, 'USD');
+  showTradeMsg(`Converted ${fmtPrice(amount, from)} to ${fmtPrice(received, to)}.`, 'success');
+  closeCurrencyDialog();
 }
 
 function openTradeDialog(type, sym) {
@@ -69,10 +193,18 @@ function updateDialogFields() {
   const symbol = state.selected;
   const price = type === 'limit' ? Number(document.getElementById('dialogLimitPrice').value) : state.livePrices[symbol];
   const qty = Number(document.getElementById('dialogQty').value) || 0;
-  document.getElementById('dialogTotal').textContent = fmtPrice(qty * price, state.stockData[symbol]?.currency);
-  document.getElementById('dialogHint').textContent = type === 'limit'
+  const currency = state.stockData[symbol]?.currency || 'USD';
+  const total = qty * price;
+  document.getElementById('dialogTotal').textContent = fmtPrice(total, currency);
+  const orderHint = type === 'limit'
     ? (state.dialogAction === 'buy' ? 'Buy limit must be at or above the current market to fill now.' : 'Sell limit must be at or below the current market to fill now.')
     : 'The trade executes at the current market price.';
+  const cashHint = state.dialogAction === 'sell'
+    ? `Sale proceeds go to your ${currency} wallet.`
+    : currency === 'INR'
+      ? `Uses your INR wallet (${fmtPrice(state.balance, 'INR')}).`
+      : `Uses your USD wallet (${fmtPrice(state.usdBalance, 'USD')}). Convert INR to USD first if needed.`;
+  document.getElementById('dialogHint').textContent = `${orderHint} ${cashHint}`;
 }
 
 function submitTradeDialog(event) {
@@ -135,19 +267,25 @@ function executeTrade(type, options = {}) {
   const price = orderType === 'limit' ? limitPrice : marketPrice;
   const total = qty * price;
   const currency = state.stockData[sym]?.currency || 'USD';
-  const totalInAccountCurrency = toAccountCurrency(total, currency);
+  const walletBalance = currency === 'INR' ? state.balance : state.usdBalance;
 
   if (type === 'buy') {
-    if (totalInAccountCurrency > state.balance) {
-      showTradeMsg(`Insufficient balance! Need ${fmtPrice(total, currency)}`, 'error');
+    if (total > walletBalance) {
+      if (currency === 'INR') {
+        showTradeMsg(`Insufficient INR balance. Need ${fmtPrice(total, 'INR')}.`, 'error');
+      } else {
+        const shortfallInr = (total - walletBalance) * USD_TO_INR;
+        showTradeMsg(`Insufficient USD. Convert at least ${fmtPrice(shortfallInr, 'INR')} to your USD wallet first.`, 'error');
+      }
       return;
     }
-    state.balance -= totalInAccountCurrency;
+    if (currency === 'INR') state.balance -= total;
+    else state.usdBalance -= total;
     if (!state.portfolio[sym]) state.portfolio[sym] = { qty: 0, avg: 0, invested: 0 };
     const p = state.portfolio[sym];
     const previousQty = p.qty;
     p.qty += qty;
-    p.invested += totalInAccountCurrency;
+    p.invested += total;
     p.avg = ((p.avg * previousQty) + (price * qty)) / p.qty;
     p.avgNative = p.avg;
     if (options.stopLoss > 0) p.stopLoss = options.stopLoss;
@@ -159,14 +297,13 @@ function executeTrade(type, options = {}) {
     }
     const p = state.portfolio[sym];
     const sellVal = qty * price;
-    const sellValInAccountCurrency = toAccountCurrency(sellVal, currency);
     const cost = qty * p.avg;
-    const costInAccountCurrency = toAccountCurrency(cost, currency);
-    const pl = sellValInAccountCurrency - costInAccountCurrency;
+    const pl = toAccountCurrency(sellVal - cost, currency);
     state.dayPnL += pl;
-    state.balance += sellValInAccountCurrency;
+    if (currency === 'INR') state.balance += sellVal;
+    else state.usdBalance += sellVal;
     p.qty -= qty;
-    p.invested -= costInAccountCurrency;
+    p.invested = p.qty * p.avg;
     p.avgNative = p.avg;
     if (options.stopLoss > 0) p.stopLoss = options.stopLoss;
     if (p.qty === 0) delete state.portfolio[sym];
@@ -180,7 +317,8 @@ function executeTrade(type, options = {}) {
     type: type.toUpperCase(),
     qty,
     price,
-    total
+    total,
+    currency
   });
   if (state.orders.length > 50) state.orders.pop();
 
@@ -216,8 +354,9 @@ function renderStockList() {
     change: getChange(sym)
   }));
   if (state.tab === 'india') list = list.filter(s => s.sym.endsWith('.NS'));
-  else if (state.tab === 'us') list = list.filter(s => !s.sym.endsWith('.NS') && !s.sym.endsWith('-USD'));
+  else if (state.tab === 'us') list = list.filter(s => !s.sym.endsWith('.NS') && !s.sym.endsWith('-USD') && !s.sym.endsWith('=X'));
   else if (state.tab === 'crypto') list = list.filter(s => s.sym.endsWith('-USD'));
+  else if (state.tab === 'forex') list = list.filter(s => s.sym.endsWith('=X'));
   if (q) {
     list = list.filter(s =>
       s.sym.toLowerCase().includes(q) ||
@@ -281,24 +420,26 @@ function setTab(tab) {
 
 // ---------- STATS & BOTTOM PANELS ----------
 function updateStats() {
-  let portVal = 0, totalPL = 0;
+  let portVal = 0;
   Object.entries(state.portfolio).forEach(([sym, p]) => {
     if (p.qty > 0 && state.livePrices[sym]) {
         const currency = state.stockData[sym]?.currency || 'USD';
         const cv = toAccountCurrency(p.qty * state.livePrices[sym], currency);
         portVal += cv;
-        totalPL += cv - p.invested;
     }
   });
-  document.getElementById('statBalance').textContent = fmtPrice(state.balance, 'USD');
-  document.getElementById('statPortfolio').textContent = fmtPrice(portVal, 'USD');
-  const plTotal = totalPL + (state.balance - 100000);
+  document.getElementById('statBalance').textContent = fmtPrice(state.balance, 'INR');
+  document.getElementById('statUsdBalance').textContent = fmtPrice(state.usdBalance, 'USD');
+  document.getElementById('statPortfolio').textContent = fmtPrice(portVal, 'INR');
+  const plTotal = state.balance + toAccountCurrency(state.usdBalance, 'USD') + portVal - state.initialBalance;
   const plEl = document.getElementById('statPnL');
-  plEl.textContent = (plTotal >= 0 ? '+' : '') + fmtCompact(plTotal);
+  plEl.textContent = (plTotal >= 0 ? '+' : '') + fmtPrice(plTotal, 'INR');
   plEl.className = 'value ' + (plTotal >= 0 ? 'green' : 'red');
   const dayEl = document.getElementById('statDayPnL');
-  dayEl.textContent = (state.dayPnL >= 0 ? '+' : '') + fmtCompact(state.dayPnL);
+  dayEl.textContent = (state.dayPnL >= 0 ? '+' : '') + fmtPrice(state.dayPnL, 'INR');
   dayEl.className = 'value ' + (state.dayPnL >= 0 ? 'green' : 'red');
+  updateCurrencyRateDisplay();
+  renderTradeFunds();
 }
 
 function renderPositions() {
@@ -316,9 +457,9 @@ function renderPositions() {
     tb.innerHTML += `<tr>
       <td><strong>${sym}</strong></td>
       <td class="text-right">${p.qty}</td>
-      <td class="text-right">${fmtCompact(p.avg)}</td>
-      <td class="text-right">${fmtCompact(ltp)}</td>
-      <td class="text-right ${cls}">${sg}${fmtCompact(pl)}</td>
+      <td class="text-right">${fmtPrice(p.avg, currency)}</td>
+      <td class="text-right">${fmtPrice(ltp, currency)}</td>
+      <td class="text-right ${cls}">${sg}${fmtPrice(pl, currency)}</td>
     </tr>`;
   });
   if (!c) tb.innerHTML = '<tr><td colspan="5" class="empty-state">No positions</td></tr>';
@@ -342,10 +483,10 @@ function renderHoldings() {
     tb.innerHTML += `<tr>
       <td><strong>${sym}</strong></td>
       <td class="text-right">${p.qty}</td>
-      <td class="text-right">${fmtCompact(avgPrice)}</td>
-      <td class="text-right">${fmtCompact(investedNative)}</td>
-      <td class="text-right">${fmtCompact(cv)}</td>
-      <td class="text-right ${cls}">${sg}${fmtCompact(pl)}</td>
+      <td class="text-right">${fmtPrice(avgPrice, currency)}</td>
+      <td class="text-right">${fmtPrice(investedNative, currency)}</td>
+      <td class="text-right">${fmtPrice(cv, currency)}</td>
+      <td class="text-right ${cls}">${sg}${fmtPrice(pl, currency)}</td>
     </tr>`;
   });
   if (!c) tb.innerHTML = '<tr><td colspan="6" class="empty-state">No holdings</td></tr>';
@@ -360,13 +501,14 @@ function renderOrders() {
     return;
   }
   state.orders.forEach(o => {
+    const currency = o.currency || state.stockData[o.sym]?.currency || 'USD';
     tb.innerHTML += `<tr>
       <td style="color:var(--text3);font-size:10px;">${o.time}</td>
       <td><strong>${o.sym}</strong></td>
       <td><span class="badge ${o.type.toLowerCase()}">${o.type}</span></td>
       <td class="text-right">${o.qty}</td>
-      <td class="text-right">${fmtCompact(o.price)}</td>
-      <td class="text-right">${fmtCompact(o.total)}</td>
+      <td class="text-right">${fmtPrice(o.price, o.priceCurrency || currency)}</td>
+      <td class="text-right">${fmtPrice(o.total, currency)}</td>
     </tr>`;
   });
 }

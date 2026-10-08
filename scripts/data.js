@@ -23,6 +23,10 @@ const FETCH_CONFIG = {
 const pendingMarketRequests = {};
 const marketRequestVersions = {};
 const marketRequestErrors = {};
+let pendingUsdInrRequest = null;
+let usdInrRateUpdatedAt = null;
+let usdInrRateError = '';
+let usdInrRateRefreshing = false;
 
 function aggregateCandles(candles, minutes) {
   const intervalMs = minutes * 60000;
@@ -87,6 +91,38 @@ async function fetchMarketCandles(symbol, timeframe, forceRefresh = false) {
   const { candles: rawCandles, meta } = parseYahooResponse(symbol, await response.json());
   const candles = timeframe === '4h' ? aggregateCandles(rawCandles, 240) : rawCandles;
   return { candles: candles.slice(-CANDLE_LIMITS[timeframe]), meta };
+}
+
+async function refreshUsdInrRate(forceRefresh = true) {
+  if (pendingUsdInrRequest) return pendingUsdInrRequest;
+  usdInrRateRefreshing = true;
+  updateCurrencyRateDisplay();
+  pendingUsdInrRequest = (async () => {
+    try {
+      const { meta } = await fetchMarketCandles('USDINR=X', '1d', forceRefresh);
+      const currentRate = Number(meta.regularMarketPrice);
+      if (!Number.isFinite(currentRate) || currentRate <= 0) {
+        throw new Error('Yahoo Finance returned no current USD/INR rate');
+      }
+      USD_TO_INR = currentRate;
+      usdInrRateUpdatedAt = new Date();
+      usdInrRateError = '';
+      updateCurrencyRateDisplay();
+      updateStats();
+      saveState();
+      return true;
+    } catch (error) {
+      usdInrRateError = error.message || 'Unknown USD/INR rate error';
+      console.warn('Could not refresh live USD/INR rate', error);
+      updateCurrencyRateDisplay();
+      return false;
+    } finally {
+      pendingUsdInrRequest = null;
+      usdInrRateRefreshing = false;
+      updateCurrencyRateDisplay();
+    }
+  })();
+  return pendingUsdInrRequest;
 }
 
 async function refreshMarketData(symbol, timeframe = state.currentTimeframe, forceRefresh = false) {

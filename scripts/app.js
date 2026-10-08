@@ -18,6 +18,10 @@ window.submitTradeDialog = submitTradeDialog;
 window.doLogin = doLogin;
 window.doLogout = doLogout;
 window.refreshChart = refreshChart;
+window.openCurrencyDialog = openCurrencyDialog;
+window.closeCurrencyDialog = closeCurrencyDialog;
+window.updateCurrencyConversion = updateCurrencyConversion;
+window.executeCurrencyConversion = executeCurrencyConversion;
 
 // ---------- MARKET DATA REFRESH ----------
 function renderMarketData(symbol, timeframe) {
@@ -64,10 +68,12 @@ async function refreshChart() {
 
 function startMarketDataPolling() {
   if (state._updateTimer) clearInterval(state._updateTimer);
+  refreshUsdInrRate(true);
   state._updateTimer = setInterval(async () => {
     const symbol = state.selected;
     const timeframe = state.currentTimeframe;
     if (!symbol || !state.user) return;
+    refreshUsdInrRate(true);
     const loaded = await refreshMarketData(symbol, timeframe);
     if (loaded) renderMarketData(symbol, timeframe);
     else showMarketDataError(symbol, timeframe);
@@ -96,7 +102,9 @@ function doLogin() {
 function doLogout() {
   if (state._updateTimer) { clearInterval(state._updateTimer); state._updateTimer = null; }
   state.user = null;
-  state.balance = 100000;
+  state.balance = INITIAL_INR_BALANCE;
+  state.usdBalance = 0;
+  state.initialBalance = INITIAL_INR_BALANCE;
   state.selected = 'AAPL';
   state.tab = 'all';
   state.portfolio = {};
@@ -118,6 +126,8 @@ function initApp() {
     saveState();
   }
   updateTimeframeButtons(state.currentTimeframe);
+  updateCurrencyRateDisplay();
+  refreshUsdInrRate(true);
 
   document.getElementById('loadingScreen').style.display = 'none';
 
