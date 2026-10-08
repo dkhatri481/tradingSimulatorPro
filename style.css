@@ -165,7 +165,13 @@ body {
 }
 .header-center {
   display: flex;
-  gap: 28px;
+  gap: 18px;
+}
+.header-center .stat { min-width: 0; }
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .stat .label {
   font-size: 9px;
@@ -210,6 +216,10 @@ body {
 .logout-btn:hover {
   border-color: var(--red);
   color: var(--red);
+}
+.convert-btn {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* ───── MAIN ───── */
@@ -669,6 +679,14 @@ body {
 .trade-msg.error {
   color: var(--red);
 }
+.trade-funds {
+  min-height: 18px;
+  margin: -2px 0 5px;
+  color: var(--text3);
+  font-size: 11px;
+  text-align: center;
+}
+.trade-funds.insufficient { color: var(--red); }
 .trade-dialog {
   display: none;
   position: fixed;
@@ -702,6 +720,20 @@ body {
 .dialog-total { margin: 16px 0; color: var(--text2); display: flex; justify-content: space-between; }
 .dialog-total strong { color: var(--text); font-family: var(--mono); }
 .dialog-submit { width: 100%; }
+.currency-wallets {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 18px 0;
+  color: var(--text2);
+  font-size: 12px;
+}
+.currency-wallets strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-family: var(--mono);
+}
 
 /* ───── BOTTOM PANELS ───── */
 .bottom {
@@ -783,6 +815,10 @@ tbody tr:hover {
   background: rgba(240, 98, 92, 0.15);
   color: var(--red);
 }
+.badge.convert {
+  background: rgba(74, 124, 247, 0.15);
+  color: var(--accent);
+}
 .empty-state {
   padding: 32px 16px;
   text-align: center;
@@ -801,8 +837,15 @@ tbody tr:hover {
   .sidebar {
     width: 220px;
   }
+  .header {
+    height: auto;
+    min-height: 56px;
+  }
   .header-center {
-    gap: 14px;
+    display: grid;
+    flex: 1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px 10px;
   }
   .stat .value {
     font-size: 12px;
@@ -816,7 +859,7 @@ tbody tr:hover {
     width: 180px;
   }
   .header-center {
-    gap: 10px;
+    gap: 4px 8px;
   }
   .stat .value {
     font-size: 11px;
@@ -879,7 +922,34 @@ tbody tr:hover {
     overflow: visible;
   }
   .header-center {
-    display: none;
+    order: 3;
+    display: flex;
+    flex: 1 0 100%;
+    justify-content: space-between;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .header-center .stat {
+    flex: 0 0 auto;
+  }
+  .header {
+    height: auto;
+    min-height: 56px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .header-right {
+    gap: 6px;
+    margin-left: auto;
+  }
+  .header-right .logout-btn {
+    padding: 6px 8px;
+  }
+  .user-pill {
+    padding: 6px 8px;
+    font-size: 11px;
   }
   .chart-wrap {
     height: 300px;

@@ -36,14 +36,16 @@
     <div class="header">
       <div class="header-left"><span class="logo">📈 TradePro</span></div>
       <div class="header-center">
-        <div class="stat"><span class="label">Balance</span><span id="statBalance" class="value">$100,000.00</span></div>
-        <div class="stat"><span class="label">Portfolio</span><span id="statPortfolio" class="value">$0.00</span></div>
-        <div class="stat"><span class="label">Total P&L</span><span id="statPnL" class="value green">+$0.00</span></div>
-        <div class="stat"><span class="label">Day P&L</span><span id="statDayPnL" class="value green">+$0.00</span></div>
-        <div class="stat fx-stat"><span class="label">USD/INR</span><span class="value">₹83.50</span></div>
+        <div class="stat"><span class="label">INR Balance</span><span id="statBalance" class="value">₹83,50,000.00</span></div>
+        <div class="stat"><span class="label">USD Wallet</span><span id="statUsdBalance" class="value">$0.00</span></div>
+        <div class="stat"><span class="label">Portfolio</span><span id="statPortfolio" class="value">₹0.00</span></div>
+        <div class="stat"><span class="label">Total P&amp;L</span><span id="statPnL" class="value green">+₹0.00</span></div>
+        <div class="stat"><span class="label">Day P&amp;L</span><span id="statDayPnL" class="value green">+₹0.00</span></div>
+        <div class="stat fx-stat"><span class="label" id="fxRateLabel">USD/INR (loading)</span><span class="value">₹83.50</span></div>
       </div>
       <div class="header-right">
         <span class="user-pill" id="userPill">👤 Guest</span>
+        <button class="logout-btn convert-btn" onclick="openCurrencyDialog()">⇄ Convert</button>
         <button class="logout-btn" onclick="doLogout()">Logout</button>
       </div>
     </div>
@@ -57,6 +59,7 @@
           <div class="sidebar-tab" onclick="setTab('india')" id="tab-india">🇮🇳</div>
           <div class="sidebar-tab" onclick="setTab('us')" id="tab-us">🇺🇸</div>
           <div class="sidebar-tab" onclick="setTab('crypto')" id="tab-crypto">₿</div>
+          <div class="sidebar-tab" onclick="setTab('forex')" id="tab-forex">FX</div>
         </div>
         <div class="search-box">
           <input type="text" id="stockSearch" placeholder="Search symbol or name …" oninput="filterStocks()" />
@@ -134,6 +137,7 @@
           </div>
         </div>
         <div class="trade-msg" id="tradeMsg"></div>
+        <div class="trade-funds" id="tradeFunds"></div>
       </div>
     </div>
 
@@ -182,6 +186,40 @@
       <div id="dialogHint" class="dialog-hint"></div>
       <div class="dialog-total">Estimated total <strong id="dialogTotal">—</strong></div>
       <button id="dialogSubmit" class="trade-btn buy dialog-submit" type="submit">Execute Buy</button>
+    </form>
+  </div>
+
+  <div id="currencyDialog" class="trade-dialog" aria-hidden="true">
+    <div class="trade-dialog-backdrop" onclick="closeCurrencyDialog()"></div>
+    <form class="trade-dialog-box currency-dialog-box" onsubmit="executeCurrencyConversion(event)">
+      <div class="trade-dialog-header">
+        <div><strong>Currency exchange</strong></div>
+        <button type="button" class="dialog-close" onclick="closeCurrencyDialog()" aria-label="Close">×</button>
+      </div>
+      <div class="currency-wallets">
+        <span>INR wallet <strong id="convertInrBalance">₹0.00</strong></span>
+        <span>USD wallet <strong id="convertUsdBalance">$0.00</strong></span>
+      </div>
+      <div class="dialog-grid">
+        <label>From
+          <select id="convertFrom" onchange="updateCurrencyConversion()">
+            <option value="INR">INR (₹)</option>
+            <option value="USD">USD ($)</option>
+          </select>
+        </label>
+        <label>To
+          <select id="convertTo" onchange="updateCurrencyConversion()">
+            <option value="USD">USD ($)</option>
+            <option value="INR">INR (₹)</option>
+          </select>
+        </label>
+        <label class="dialog-wide">Amount
+          <input id="convertAmount" type="number" min="0.01" step="0.01" value="10000" oninput="updateCurrencyConversion()" required />
+        </label>
+      </div>
+      <div class="dialog-hint" id="conversionRate">Waiting for the current USD/INR rate…</div>
+      <div class="dialog-total">You receive <strong id="conversionPreview">—</strong></div>
+      <button id="convertSubmit" class="trade-btn buy dialog-submit" type="submit" disabled>Convert currency</button>
     </form>
   </div>
 
