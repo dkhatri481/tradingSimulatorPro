@@ -127,6 +127,23 @@ body {
   transform: scale(1.01);
   box-shadow: 0 4px 24px rgba(74, 124, 247, 0.3);
 }
+.login-box .text-game-link {
+  display: block;
+  margin-top: 10px;
+  background: var(--surface2);
+  color: var(--text);
+  text-align: center;
+  text-decoration: none;
+}
+.login-box .text-game-link:hover {
+  box-shadow: 0 4px 24px rgba(74, 124, 247, 0.18);
+}
+.text-game-nav {
+  border-color: var(--accent);
+  color: var(--accent);
+  white-space: nowrap;
+  text-decoration: none;
+}
 .login-box .demo-note {
   text-align: center;
   font-size: 12px;

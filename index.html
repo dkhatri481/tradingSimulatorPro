@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="refresh" content="0; url=empire.html#stocks" />
   <title>TradePro — Trading Simulator</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -26,6 +27,7 @@
       <input type="text" id="loginUser" placeholder="Username" value="demo" />
       <input type="password" id="loginPass" placeholder="Password" value="demo" />
       <button class="login-btn" onclick="doLogin()">🚀 Launch</button>
+      <a class="login-btn text-game-link" href="empire.html#empire">Open Trading Empire</a>
       <div class="demo-note">Any username · demo mode</div>
     </div>
   </div>
@@ -45,6 +47,7 @@
       </div>
       <div class="header-right">
         <span class="user-pill" id="userPill">👤 Guest</span>
+        <a class="logout-btn text-game-nav" href="empire.html#empire">Trading Empire</a>
         <button class="logout-btn convert-btn" onclick="openCurrencyDialog()">⇄ Convert</button>
         <button class="logout-btn" onclick="doLogout()">Logout</button>
       </div>
