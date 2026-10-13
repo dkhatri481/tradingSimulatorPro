@@ -91,7 +91,7 @@ function hasCurrentUsdInrRate() {
 }
 
 function updateCurrencyRateDisplay() {
-  const rateValue = document.querySelector('.fx-stat .value');
+  const rateValue = document.querySelector('.fx-stat .value, .fx-stat-value');
   const rateLabel = document.getElementById('fxRateLabel');
   if (!rateValue || !rateLabel) return;
   rateValue.textContent = fmtPrice(USD_TO_INR, 'INR');
@@ -108,6 +108,10 @@ function updateCurrencyRateDisplay() {
   rateLabel.title = `${updated}${error}` || 'Fetching the current USD/INR rate from Yahoo Finance.';
   if (document.getElementById('currencyDialog').classList.contains('open')) {
     updateCurrencyConversion();
+  }
+  const transferDialog = document.getElementById('transferDialog');
+  if (transferDialog?.classList.contains('open') && window.updateFundsTransfer) {
+    window.updateFundsTransfer();
   }
 }
 
@@ -440,6 +444,7 @@ function updateStats() {
   dayEl.className = 'value ' + (state.dayPnL >= 0 ? 'green' : 'red');
   updateCurrencyRateDisplay();
   renderTradeFunds();
+  if (window.syncEmpireStockState) window.syncEmpireStockState();
 }
 
 function renderPositions() {
@@ -506,7 +511,7 @@ function renderOrders() {
       <td style="color:var(--text3);font-size:10px;">${o.time}</td>
       <td><strong>${o.sym}</strong></td>
       <td><span class="badge ${o.type.toLowerCase()}">${o.type}</span></td>
-      <td class="text-right">${o.qty}</td>
+      <td class="text-right">${o.type === 'TRANSFER' && o.quantityCurrency ? fmtPrice(o.qty, o.quantityCurrency) : o.qty}</td>
       <td class="text-right">${fmtPrice(o.price, o.priceCurrency || currency)}</td>
       <td class="text-right">${fmtPrice(o.total, currency)}</td>
     </tr>`;

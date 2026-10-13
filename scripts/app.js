@@ -22,6 +22,8 @@ window.openCurrencyDialog = openCurrencyDialog;
 window.closeCurrencyDialog = closeCurrencyDialog;
 window.updateCurrencyConversion = updateCurrencyConversion;
 window.executeCurrencyConversion = executeCurrencyConversion;
+window.getCurrentUsdInrRate = () => hasCurrentUsdInrRate() ? USD_TO_INR : null;
+window.refreshUsdInrRate = refreshUsdInrRate;
 
 // ---------- MARKET DATA REFRESH ----------
 function renderMarketData(symbol, timeframe) {
@@ -113,12 +115,15 @@ function doLogout() {
   state.livePrices = {};
   state.stockData = createAllStockData();
   saveState();
-  document.getElementById('loginScreen').style.display = 'flex';
-  document.getElementById('mainApp').classList.remove('active');
+  const loginScreen = document.getElementById('loginScreen');
+  const mainApp = document.getElementById('mainApp');
+  if (loginScreen) loginScreen.style.display = 'flex';
+  if (mainApp) mainApp.classList.remove('active');
 }
 
 // ---------- INIT ----------
 function initApp() {
+  const unifiedGame = Boolean(document.getElementById('stocksView'));
   // Load saved state
   const loaded = loadState();
   if (!loaded) {
@@ -129,12 +134,17 @@ function initApp() {
   updateCurrencyRateDisplay();
   refreshUsdInrRate(true);
 
-  document.getElementById('loadingScreen').style.display = 'none';
+  const loadingScreen = document.getElementById('loadingScreen');
+  if (loadingScreen) loadingScreen.style.display = 'none';
+  if (unifiedGame && !state.user) state.user = 'Founder';
 
   if (state.user) {
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('mainApp').classList.add('active');
-    document.getElementById('userPill').textContent = '👤 ' + state.user;
+    const loginScreen = document.getElementById('loginScreen');
+    const mainApp = document.getElementById('mainApp');
+    const userPill = document.getElementById('userPill');
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (mainApp) mainApp.classList.add('active');
+    if (userPill) userPill.textContent = '👤 ' + state.user;
     renderStockList();
     selectStock(state.selected || 'AAPL');
     updateStats();
@@ -143,8 +153,10 @@ function initApp() {
     renderHoldings();
     renderOrders();
     startMarketDataPolling();
+    if (window.syncEmpireStockState) window.syncEmpireStockState();
   } else {
-    document.getElementById('loginScreen').style.display = 'flex';
+    const loginScreen = document.getElementById('loginScreen');
+    if (loginScreen) loginScreen.style.display = 'flex';
   }
 }
 
